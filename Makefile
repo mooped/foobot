@@ -1,7 +1,8 @@
 # Makefile
 TARGET = firmware
-MCU = at90usb162
-F_CPU = 16000000
+MCU = attiny2313
+AVRDUDE_MCU = t2313
+F_CPU = 8000000
 
 SRCS = $(shell ls *.c)
 OBJS = $(SRCS:%.c=$(OBJDIR)/%.o)
@@ -12,7 +13,7 @@ DEPDIR = .deps
 CFLAGS = \
 	-O3 -mmcu=$(MCU) -funsigned-char -funsigned-bitfields -ffunction-sections \
 	-fpack-struct -fshort-enums -finline-limit=20 -Wall -Wstrict-prototypes \
-	-Wundef -std=gnu99 -Wall -pedantic
+	-Wundef -std=gnu99 -Wall -pedantic -D__AVR_ATtiny2313__
 LDFLAGS = -mmcu=$(MCU) -Wl,--relax -Wl,--gc-sections -lm
 
 all: $(TARGET).hex
@@ -24,13 +25,12 @@ $(TARGET).hex: $(OBJS)
 $(OBJDIR)/%.o : %.c
 	$(CC) -c $(CFLAGS) -MMD -MP -MF $(DEPDIR)/$(@F).d -Wa,-adhlns=$(OBJDIR)/$<.lst $< -o $@ -DF_CPU=$(F_CPU)
 
-clean: FORCE
+clean:
 	rm -rf $(OBJDIR) $(TARGET).hex $(DEPDIR)
 
 -include $(shell mkdir -p $(OBJDIR) $(DEPDIR) 2>/dev/null) $(wildcard $(DEPDIR)/*)
 
-dfu: $(TARGET).hex
-	sudo dfu-programmer $(MCU) erase
-	sudo dfu-programmer $(MCU) flash --debug 1 $(TARGET).hex
-	sudo dfu-programmer $(MCU) reset
+flash: $(TARGET).hex
+	#avrdude -p $(AVRDUDE_MCU) -c avrispv2 -P /dev/avrispv2 -e
+	sudo avrdude -p $(AVRDUDE_MCU) -c avrispv2 -P /dev/ttyACM1 -U flash:w:$(TARGET).hex
 

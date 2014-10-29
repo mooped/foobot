@@ -5,30 +5,29 @@
 #include <avr/wdt.h>
 #include <util/delay.h>
 
-static inline void led_set(unsigned char bits)
-{
-	unsigned char mask = (1<<5)|(1<<6);
-	PORTD &= ~(mask);
-	PORTD |= (bits<<5) & mask;
-}
-
 void init_hardware(void)
 {
-	/* Disable watchdog if enabled by bootloader/fuses */
+	// Disable watchdog if enabled by bootloader/fuses
 	MCUSR &= ~(1<<WDRF);
 	wdt_disable();
 
-	/* Disable prescaler */
+	// Disable prescaler
 	clock_prescale_set(clock_div_1);
 
-	/* Enable port B pin 0 as an output */
-	DDRB = (1<<DDB0);
-	PORTB = 0;
+	// Enable port A pin 0:1 as output
+	DDRA = (1<<0)|(1<<1);
+	PORTA = 0x01;
 
-	/* LEDs */
-	DDRD |= (1<<5)|(1<<6);
+  // Enable port D pin 3 as input
+  DDRD = (0<<PD3);
+  PORTD = 0;
+
+  // Enable interrupts on INT1 (PD3) on all state transitions
+  MCUCR = (0<<ISC11)|(1<<ISC10);
+  GIMSK |= (1<<INT1);
+
+  sei();
 }
-
 
 int main(void)
 {
@@ -36,10 +35,11 @@ int main(void)
 	
 	while (1)
 	{
-		_delay_us(100);
-		PORTB = 1;
-		_delay_us(100);
-		PORTB = 0;
 	}
+}
+
+ISR(INT1_vect, ISR_BLOCK)
+{
+  PORTA = (PIND & (1<<PD3)) ? 1 : 2;
 }
 
