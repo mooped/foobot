@@ -2,7 +2,7 @@
 TARGET = firmware
 MCU = attiny2313
 AVRDUDE_MCU = t2313
-F_CPU = 8000000
+F_CPU = 2000000
 
 SRCS = $(shell ls *.c)
 OBJS = $(SRCS:%.c=$(OBJDIR)/%.o)
