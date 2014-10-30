@@ -2,7 +2,7 @@
 TARGET = firmware
 MCU = attiny2313
 AVRDUDE_MCU = t2313
-F_CPU = 2000000
+F_CPU = 8000000
 
 SRCS = $(shell ls *.c)
 OBJS = $(SRCS:%.c=$(OBJDIR)/%.o)
@@ -32,5 +32,5 @@ clean:
 
 flash: $(TARGET).hex
 	#avrdude -p $(AVRDUDE_MCU) -c avrispv2 -P /dev/avrispv2 -e
-	sudo avrdude -p $(AVRDUDE_MCU) -c avrispv2 -P /dev/ttyACM1 -U flash:w:$(TARGET).hex
+	sudo avrdude -p $(AVRDUDE_MCU) -c avrispv2 -P /dev/ttyACM2 -U flash:w:$(TARGET).hex
 
