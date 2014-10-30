@@ -56,14 +56,71 @@ void USART_Transmit(unsigned char data)
   UDR = data;                                    // Send the data
 }
 
+void process_command(char cmd)
+{
+  switch (cmd)
+  {
+    // Left motor
+    case 'q':
+    {
+      PORTA = 0x01;
+    } break;
+    case 'a':
+    {
+      PORTA = 0x00;
+    } break;
+    case 'z':
+    {
+      PORTA = 0x02;
+    } break;
+    // Right motor
+    // PORTD shared with reciever - need to be more careful
+    case 'e':
+    {
+      PORTD = (PORTD & ~((1<<PD4)|(1<<PD5))) | (1<<PD4);
+    } break;
+    case 'd':
+    {
+      PORTD &= ~((1<<PD4)|(1<<PD5));
+    } break;
+    case 'c':
+    {
+      PORTD = (PORTD & ~((1<<PD4)|(1<<PD5))) | (1<<PD5);
+    } break;
+  }
+}
+
+#define ROBOT_ID 'a'
+
+char message[3];
+uint8_t message_byte = 0;
+
 void on_message_start(void)
 {
-
+  message_byte = 0;
+  message[0] = 0;
+  message[1] = 0;
+  message[2] = 0;
 }
 
 void on_byte_recieved(char data)
 {
-  USART_Transmit(data);
+  message[message_byte++] = data;
+  if (message_byte == 3)
+  {
+    message_byte = 0;
+    if (message[0] == ROBOT_ID)  // For me
+    {
+      process_command(message[1]);
+      // TODO: Validate checksum in message[2]
+      if (message[2] != '!') { USART_Transmit('C'); }
+      USART_Transmit(message[1]);
+    }
+    else  // Not for me
+    {
+      USART_Transmit('N');
+    }
+  }
 }
 
 int main(void)
