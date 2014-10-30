@@ -16,10 +16,10 @@ void init_hardware(void)
 
   // Enable port A pin 0:1 as output
   DDRA = (1<<0)|(1<<1);
-  PORTA = 0x01;
+  PORTA = 0;
 
-  // Enable port D pin 3 as input
-  DDRD = (0<<PD3);
+  // Enable port D pin 3 as input, pins 4:5 as outputs
+  DDRD = (0<<PD3)|(1<<PD4)|(1<<PD5);
   PORTD = 0;
 
   // Enable interrupts on INT1 (PD3) on all state transitions
@@ -54,6 +54,11 @@ void USART_Transmit(unsigned char data)
 {
   while (!(UCSRA & (1<<UDRE)));                  // Wait for empty transmission buffer
   UDR = data;                                    // Send the data
+}
+
+void on_byte_recieved(char data)
+{
+  USART_Transmit(data);
 }
 
 int main(void)
@@ -149,7 +154,7 @@ inline void handle_bit(uint8_t bit)
       }
       else
       {
-        //handle_error();
+        handle_error();
       }
     } break;
     case eRS_MESSAGE:
@@ -157,7 +162,7 @@ inline void handle_bit(uint8_t bit)
       capture = ((capture >> 1) & 0x7f) | (bit?0x80:0x00);
       if (++bits == CAPTURE_BITS)
       {
-        USART_Transmit(capture);
+        on_byte_recieved(capture);
         status = 1;
 
         capture = 0;
@@ -165,8 +170,6 @@ inline void handle_bit(uint8_t bit)
       }
     } break;
   }
-
-  PORTA = (status?1:0)|(bit?2:0);
 }
 
 // Interrupt when pin D3 changes state
@@ -220,8 +223,6 @@ ISR(INT1_vect, ISR_BLOCK)
       }
     }
   }
- 
-  //PORTA = (status?1:0)|(incoming?2:0);
 }
 
 // Interrupt on timer 0 output compare A
