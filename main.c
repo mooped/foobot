@@ -56,6 +56,11 @@ void USART_Transmit(unsigned char data)
   UDR = data;                                    // Send the data
 }
 
+void on_message_start(void)
+{
+
+}
+
 void on_byte_recieved(char data)
 {
   USART_Transmit(data);
@@ -125,6 +130,7 @@ void begin_state_message(void)
   bits = 0;
   status = 0;
   state = eRS_MESSAGE;
+  on_message_start();
 }
 
 inline void handle_error(void)
