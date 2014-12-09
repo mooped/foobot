@@ -18,9 +18,9 @@ void init_hardware(void)
   DDRA = (1<<0)|(1<<1);
   PORTA = 0;
 
-  // Enable port D pin 3 as input, pins 4:5 as outputs
-  DDRD = (0<<PD3)|(1<<PD4)|(1<<PD5);
-  PORTD = 0;
+  // Enable port D pin 3 as input, pins 2 and 4:5 as outputs
+  DDRD = (0<<PD3)|(1<<PD2)|(1<<PD4)|(1<<PD5);
+  PORTD = (1<<PD2);
 
   // Enable interrupts on INT1 (PD3) on all state transitions
   MCUCR = (0<<ISC11)|(1<<ISC10);
@@ -56,38 +56,42 @@ void USART_Transmit(unsigned char data)
   UDR = data;                                    // Send the data
 }
 
+#define BUTTON_A (1<<5)
+#define BUTTON_B (1<<4)
+#define BUTTON_U (1<<3)
+#define BUTTON_D (1<<2)
+#define BUTTON_L (1<<1)
+#define BUTTON_R (1<<0)
+
 void process_command(char cmd)
 {
-  switch (cmd)
+  uint8_t porta = 0;
+  uint8_t portd = PORTD & ~((1<<PD4)|(1<<PD5));
+
+  if (cmd & BUTTON_L)
   {
-    // Left motor
-    case 'q':
-    {
-      PORTA = 0x01;
-    } break;
-    case 'a':
-    {
-      PORTA = 0x00;
-    } break;
-    case 'z':
-    {
-      PORTA = 0x02;
-    } break;
-    // Right motor
-    // PORTD shared with reciever - need to be more careful
-    case 'e':
-    {
-      PORTD = (PORTD & ~((1<<PD4)|(1<<PD5))) | (1<<PD4);
-    } break;
-    case 'd':
-    {
-      PORTD &= ~((1<<PD4)|(1<<PD5));
-    } break;
-    case 'c':
-    {
-      PORTD = (PORTD & ~((1<<PD4)|(1<<PD5))) | (1<<PD5);
-    } break;
+    porta |= (1<<PA1);
+    portd |= (1<<PD4);
   }
+  else if (cmd & BUTTON_R)
+  {
+    porta |= (1<<PA0);
+    portd |= (1<<PD5);
+  }
+
+  if (cmd & BUTTON_B)
+  {
+    porta |= (1<<PA0);
+    portd |= (1<<PD4);
+  }
+  else if (cmd & BUTTON_A)
+  {
+    porta |= (1<<PA1);
+    portd |= (1<<PD5);
+  }
+
+  PORTA = porta;
+  PORTD = portd;
 }
 
 #define ROBOT_ID 'a'
@@ -111,10 +115,17 @@ void on_byte_recieved(char data)
     message_byte = 0;
     if (message[0] == ROBOT_ID)  // For me
     {
-      process_command(message[1]);
-      // TODO: Validate checksum in message[2]
-      if (message[2] != '!') { USART_Transmit('C'); }
+      // Byte 2 should be the inverse of byte 1
+      if (message[1] == (message[2] ^ 0xff))
+      {
+        process_command(message[1]);
+      }
+      else
+      {
+        USART_Transmit('C');
+      }
       USART_Transmit(message[1]);
+      USART_Transmit(message[2]);
     }
     else  // Not for me
     {
