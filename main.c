@@ -70,13 +70,13 @@ void process_command(char cmd)
 
   if (cmd & BUTTON_L)
   {
-    porta |= (1<<PA1);
-    portd |= (1<<PD4);
+    porta |= (1<<PA0);
+    portd |= (1<<PD5);
   }
   else if (cmd & BUTTON_R)
   {
-    porta |= (1<<PA0);
-    portd |= (1<<PD5);
+    porta |= (1<<PA1);
+    portd |= (1<<PD4);
   }
 
   if (cmd & BUTTON_B)
