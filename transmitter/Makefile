@@ -1,8 +1,8 @@
 # Makefile
 TARGET = firmware
-MCU = attiny2313
-AVRDUDE_MCU = t2313
-F_CPU = 8000000
+MCU = attiny13a
+AVRDUDE_MCU = t13
+F_CPU = 9600000
 
 SRCS = $(shell ls *.c)
 OBJS = $(SRCS:%.c=$(OBJDIR)/%.o)
@@ -13,7 +13,7 @@ DEPDIR = .deps
 CFLAGS = \
 	-O3 -mmcu=$(MCU) -funsigned-char -funsigned-bitfields -ffunction-sections \
 	-fpack-struct -fshort-enums -finline-limit=20 -Wall -Wstrict-prototypes \
-	-Wundef -std=gnu99 -Wall -pedantic -D__AVR_ATtiny2313__
+	-Wundef -std=gnu99 -Wall -pedantic -D__AVR_ATtiny13A__
 LDFLAGS = -mmcu=$(MCU) -Wl,--relax -Wl,--gc-sections -lm
 
 all: $(TARGET).hex
@@ -32,5 +32,5 @@ clean:
 
 flash: $(TARGET).hex
 	#avrdude -p $(AVRDUDE_MCU) -c avrispv2 -P /dev/avrispv2 -e
-	sudo avrdude -p $(AVRDUDE_MCU) -c avrispv2 -P /dev/ttyACM2 -U flash:w:$(TARGET).hex
+	sudo avrdude -p $(AVRDUDE_MCU) -c avrispv2 -P /dev/ttyACM0 -U flash:w:$(TARGET).hex
 
