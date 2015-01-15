@@ -29,7 +29,7 @@ void init_hardware(void)
   // Setup timer 0
 #if 1
   // Normal mode
-  TCCR0A = 0;                                     // Normla mode (counting upwards from 0x00 to 0xff)
+  TCCR0A = 0;                                    // Normal mode (counting upwards from 0x00 to 0xff)
   TCCR0B = (1<<CS02)|(0<<CS01)|(0<<CS00);        // CLK/256 prescaler setting
   TIMSK = 0;                                     // No timer interrupts
   TCNT0 = 0;                                     // Start the timer from zero
