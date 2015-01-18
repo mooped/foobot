@@ -30,7 +30,7 @@ void SetupHardware(void)
   // Timer 0 setup
   TCCR0A = (1<<WGM01);                          // Clear on Compare Match (CTC) mode
   TCCR0B = (1<<CS02)|(0<<CS01)|(0<<CS00);       // CLK/256 prescaler setting
-  OCR0A = 1;                                   // Compare match register - time in increments of 1/16khz
+  OCR0A = 7;                                   // Compare match register - time in increments of 1/16khz
   TIMSK0 = (0<<OCIE0B)|(1<<OCIE0A)|(0<<TOIE0);  // Interrupt on OCR0A match
 
   // Disable pin change interrupts
