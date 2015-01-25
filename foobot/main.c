@@ -72,8 +72,9 @@ volatile uint8_t pwm_threshold = 0;
 
 #define IDLE_PWM 0x00
 #define STRAIGHT_PWM 0x01
-#define TURN_PWM 0x80
-#define SPIN_PWM 0x60
+#define TURN_PWM 0x60
+#define SPIN_PWM 0x80
+#define PWM_SOFT_LIMIT 0x60
 
 void process_command(char cmd)
 {
@@ -200,6 +201,11 @@ void update_pwm(void)
     else
     {
       set_pwm_pin(1);
+    }
+
+    if (pwm_threshold < PWM_SOFT_LIMIT)  // For a burst of power, set PWM below the limit and slide it up
+    {
+      ++pwm_threshold;
     }
   }
   else
