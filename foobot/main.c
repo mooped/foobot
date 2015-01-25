@@ -20,7 +20,9 @@ void init_hardware(void)
 
   // Enable port D pin 3 as input, pins 2 and 4:5 as outputs
   DDRD = (0<<PD3)|(1<<PD2)|(1<<PD4)|(1<<PD5);
-  PORTD = (1<<PD2);
+
+  // Disable the motor driver initially
+  PORTD &= ~(1<<PD2);
 
   // Enable interrupts on INT1 (PD3) on all state transitions
   MCUCR = (0<<ISC11)|(1<<ISC10);
@@ -63,38 +65,70 @@ void USART_Transmit(unsigned char data)
 #define BUTTON_L (1<<1)
 #define BUTTON_R (1<<0)
 
+#define MOTOR_A  ((1<<PA1)|(1<<PA0))
+#define MOTOR_D  ((1<<PD5)|(1<<PD4))
+
+volatile uint8_t pwm_threshold = 0;
+
+#define IDLE_PWM 0x00
+#define STRAIGHT_PWM 0x01
+#define TURN_PWM 0x80
+#define SPIN_PWM 0x60
+
 void process_command(char cmd)
 {
-  uint8_t porta = 0;
-  uint8_t portd = PORTD & ~((1<<PD4)|(1<<PD5));
+  uint8_t porta = PORTA & ~(MOTOR_A);
+  uint8_t portd = PORTD & ~(MOTOR_D);
 
-  if (cmd & BUTTON_L)
+  uint8_t new_pwm_threshold = IDLE_PWM;
+
+  if (cmd & BUTTON_B) // Forwards
   {
-    porta |= (1<<PA0);
-    portd |= (1<<PD5);
+    if ((cmd & BUTTON_R) == 0)
+    {
+      porta |= (1<<PA0);
+    }
+    if ((cmd & BUTTON_L) == 0)
+    {
+      portd |= (1<<PD4);
+    }
+    new_pwm_threshold = (cmd & (BUTTON_L | BUTTON_R)) ? TURN_PWM : STRAIGHT_PWM;
   }
-  else if (cmd & BUTTON_R)
+  else if (cmd & BUTTON_A)  // Reverse
   {
-    porta |= (1<<PA1);
-    portd |= (1<<PD4);
+    if ((cmd & BUTTON_R) == 0)
+    {
+      porta |= (1<<PA1);
+    }
+    if ((cmd & BUTTON_L) == 0)
+    {
+      portd |= (1<<PD5);
+    }
+    new_pwm_threshold = (cmd & (BUTTON_L | BUTTON_R)) ? TURN_PWM : STRAIGHT_PWM;
+  }
+  else  // Spinning
+  {
+    if (cmd & BUTTON_L) // Spin left
+    {
+      porta |= (1<<PA0);
+      portd |= (1<<PD5);
+      new_pwm_threshold = SPIN_PWM;
+    }
+    else if (cmd & BUTTON_R)  // Spin right
+    {
+      porta |= (1<<PA1);
+      portd |= (1<<PD4);
+      new_pwm_threshold = SPIN_PWM;
+    }
   }
 
-  if (cmd & BUTTON_B)
-  {
-    porta |= (1<<PA0);
-    portd |= (1<<PD4);
-  }
-  else if (cmd & BUTTON_A)
-  {
-    porta |= (1<<PA1);
-    portd |= (1<<PD5);
-  }
-
+  // Update the outputs as close together as possible
+  pwm_threshold = new_pwm_threshold;
   PORTA = porta;
   PORTD = portd;
 }
 
-#define ROBOT_ID 'a'
+#define ROBOT_ID '1'
 
 char message[3];
 uint8_t message_byte = 0;
@@ -134,12 +168,53 @@ void on_byte_recieved(char data)
   }
 }
 
+void set_pwm_pin(uint8_t enable)
+{
+  if (enable)
+  {
+    PORTD |= (1<<PD2);
+  }
+  else
+  {
+    PORTD &= ~(1<<PD2);
+  }
+}
+
+const uint8_t pwm_max = 0xff;
+
+uint8_t pwm_counter = 0;
+
+void update_pwm(void)
+{
+  if (pwm_threshold >= 1)
+  {
+    if (++pwm_counter == pwm_max)
+    {
+      pwm_counter = 0;
+    }
+
+    if (pwm_counter < pwm_threshold)
+    {
+      set_pwm_pin(0);
+    }
+    else
+    {
+      set_pwm_pin(1);
+    }
+  }
+  else
+  {
+    set_pwm_pin(0);
+  }
+}
+
 int main(void)
 {
   init_hardware();
 
   while (1)
   {
+    update_pwm();
   }
 }
 
