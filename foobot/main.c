@@ -140,11 +140,11 @@ void write_settings(void)
   }
 }
 
-#define IDLE_PWM pwm_data.idle
-#define STRAIGHT_PWM pwm_data.straight
-#define TURN_PWM pwm_data.turn
-#define SPIN_PWM pwm_data.spin
-#define PWM_SOFT_LIMIT pwm_data.soft_limit
+#define IDLE_PWM (pwm_data.idle)
+#define STRAIGHT_PWM (pwm_data.straight)
+#define TURN_PWM (pwm_data.turn)
+#define SPIN_PWM (pwm_data.spin)
+#define PWM_SOFT_LIMIT (pwm_data.soft_limit)
 
 void process_command(char cmd)
 {
