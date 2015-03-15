@@ -1,0 +1,164 @@
+Cmp-Mod V01 Created by CvPcb (2013-03-19 BZR 4004)-stable date = 21/12/2014 21:31:55
+
+BeginCmp
+TimeStamp = /5495A1B4;
+Reference = C2;
+ValeurCmp = C;
+IdModule  = SM1206;
+EndCmp
+
+BeginCmp
+TimeStamp = /5495A1A5;
+Reference = IC1;
+ValeurCmp = ATTINY13A-SS;
+IdModule  = SO8N;
+EndCmp
+
+BeginCmp
+TimeStamp = /5495AB41;
+Reference = K2;
+ValeurCmp = TX;
+IdModule  = PAD_ARRAY_3X1;
+EndCmp
+
+BeginCmp
+TimeStamp = /548B346A;
+Reference = P2;
+ValeurCmp = SMS;
+IdModule  = pin_array_2x4;
+EndCmp
+
+BeginCmp
+TimeStamp = /548B343A;
+Reference = P3;
+ValeurCmp = NES;
+IdModule  = D-CANNON_COMPACT;
+EndCmp
+
+BeginCmp
+TimeStamp = /5495BFD0;
+Reference = P4;
+ValeurCmp = RESET;
+IdModule  = PAD_ARRAY_2X1;
+EndCmp
+
+BeginCmp
+TimeStamp = /5495CE5A;
+Reference = P5;
+ValeurCmp = ISP;
+IdModule  = pad_array_3x2;
+EndCmp
+
+BeginCmp
+TimeStamp = /5495B53C;
+Reference = P6;
+ValeurCmp = CHANNEL_1;
+IdModule  = PAD_ARRAY-6X1;
+EndCmp
+
+BeginCmp
+TimeStamp = /5495AA91;
+Reference = P8;
+ValeurCmp = CHANNEL_2;
+IdModule  = PAD_ARRAY-6X1;
+EndCmp
+
+BeginCmp
+TimeStamp = /5495AB59;
+Reference = P9;
+ValeurCmp = MCU_PWR;
+IdModule  = PAD_ARRAY_2X1;
+EndCmp
+
+BeginCmp
+TimeStamp = /548B48DD;
+Reference = P10;
+ValeurCmp = AUX_IN;
+IdModule  = PIN_ARRAY_1;
+EndCmp
+
+BeginCmp
+TimeStamp = /548B4969;
+Reference = P11;
+ValeurCmp = AUX;
+IdModule  = PIN_ARRAY_1;
+EndCmp
+
+BeginCmp
+TimeStamp = /548B4974;
+Reference = P12;
+ValeurCmp = AUX;
+IdModule  = PIN_ARRAY_1;
+EndCmp
+
+BeginCmp
+TimeStamp = /548DA2E6;
+Reference = P15;
+ValeurCmp = ¬Q7;
+IdModule  = PIN_ARRAY_1;
+EndCmp
+
+BeginCmp
+TimeStamp = /548DC356;
+Reference = P35;
+ValeurCmp = CHANNEL_X;
+IdModule  = PIN_ARRAY-6X1;
+EndCmp
+
+BeginCmp
+TimeStamp = /548DC372;
+Reference = P36;
+ValeurCmp = CONN_1;
+IdModule  = PIN_ARRAY_1;
+EndCmp
+
+BeginCmp
+TimeStamp = /548DC170;
+Reference = P39;
+ValeurCmp = ¬LATCH;
+IdModule  = PIN_ARRAY_1;
+EndCmp
+
+BeginCmp
+TimeStamp = /548DBEC1;
+Reference = Q2;
+ValeurCmp = NPN;
+IdModule  = SOT23_INV;
+EndCmp
+
+BeginCmp
+TimeStamp = /548DBECD;
+Reference = R1;
+ValeurCmp = 10k;
+IdModule  = SM1206;
+EndCmp
+
+BeginCmp
+TimeStamp = /5495A5C9;
+Reference = R3;
+ValeurCmp = 10k;
+IdModule  = SM1206;
+EndCmp
+
+BeginCmp
+TimeStamp = /548DBEC7;
+Reference = R4;
+ValeurCmp = 6.7k;
+IdModule  = SM1206;
+EndCmp
+
+BeginCmp
+TimeStamp = /548B3459;
+Reference = RP1;
+ValeurCmp = R_PACK8_COMMON;
+IdModule  = SIL-9;
+EndCmp
+
+BeginCmp
+TimeStamp = /548B3434;
+Reference = U2;
+ValeurCmp = 74LS165;
+IdModule  = DIP-16__300;
+EndCmp
+
+EndListe
