@@ -33,3 +33,12 @@ clean:
 flash: $(TARGET).hex
 	sudo avrdude -p $(AVRDUDE_MCU) -c avrispv2 -P /dev/ttyACM0 -U flash:w:$(TARGET).hex
 
+eeprom.raw: eeprom.xxd
+	xxd -r eeprom.xxd > eeprom.raw
+
+eeprom: eeprom.raw
+	sudo avrdude -p $(AVRDUDE_MCU) -c avrispv2 -P /dev/ttyACM0 -U eeprom:w:eeprom.raw:r
+
+ota: eeprom.raw
+	sudo python2 ota.py eeprom.raw /dev/ttyACM0
+

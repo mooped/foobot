@@ -70,11 +70,81 @@ void USART_Transmit(unsigned char data)
 
 volatile uint8_t pwm_threshold = 0;
 
-#define IDLE_PWM 0x00
-#define STRAIGHT_PWM 0x01
-#define TURN_PWM 0x60
-#define SPIN_PWM 0x80
-#define PWM_SOFT_LIMIT 0x60
+struct SPWMData
+{
+  uint8_t idle;
+  uint8_t straight;
+  uint8_t turn;
+  uint8_t spin;
+  uint8_t soft_limit;
+} pwm_data = {
+  .idle = 0x00,
+  .straight = 0x01,
+  .turn = 0x60,
+  .spin = 0x80,
+  .soft_limit = 0x60
+};
+
+uint8_t eeprom_read(uint8_t address)
+{
+  // Wait for previous EEPROM operation
+  while (EECR & (1 << EEPE));
+
+  // Write to EEPROM address register, trigger the read and return the data
+  EEAR = address;
+  EECR |= (1<<EERE);
+  return EEDR;
+}
+
+void eeprom_write(uint8_t address, uint8_t data)
+{
+  // Wait for previous EEPROM operation
+  while (EECR & (1<<EEPE));
+
+  // Write to address and data registers and trigger the write
+  EEAR = address;
+  EEDR = data;
+  EECR |= (1<<EEMPE);
+  EECR |= (1<<EEPE);
+}
+
+#define PWM_DATA_OFFSET 0x00
+
+void init_settings(void)
+{
+  USART_Transmit('R');
+  USART_Transmit('p');
+  USART_Transmit('w');
+  USART_Transmit('m');
+
+  for (uint8_t i = 0; i < sizeof(struct SPWMData); ++i)
+  {
+    ((uint8_t*)&pwm_data)[i] = eeprom_read(i + PWM_DATA_OFFSET);
+
+    USART_Transmit(((uint8_t*)&pwm_data)[i]);
+  }
+}
+
+void write_settings(void)
+{
+  USART_Transmit('W');
+  USART_Transmit('p');
+  USART_Transmit('w');
+  USART_Transmit('m');
+
+  for (uint8_t i = 0; i < sizeof(struct SPWMData); ++i)
+  {
+    eeprom_write(i + PWM_DATA_OFFSET, ((uint8_t*)&pwm_data)[i]);
+
+    USART_Transmit(eeprom_read(PWM_DATA_OFFSET + i));
+  }
+}
+
+#define IDLE_PWM pwm_data.idle
+#define STRAIGHT_PWM pwm_data.straight
+#define TURN_PWM pwm_data.turn
+#define SPIN_PWM pwm_data.spin
+#define PWM_SOFT_LIMIT pwm_data.soft_limit
 
 void process_command(char cmd)
 {
@@ -130,6 +200,8 @@ void process_command(char cmd)
 }
 
 #define ROBOT_ID '1'
+#define UPDATE_ID 'U'
+#define WRITE_ID 'W'
 
 char message[3];
 uint8_t message_byte = 0;
@@ -162,9 +234,34 @@ void on_byte_recieved(char data)
       USART_Transmit(message[1]);
       USART_Transmit(message[2]);
     }
+    else if (message[0] == UPDATE_ID) // Settings update message
+    {
+      USART_Transmit(message[0]);
+      USART_Transmit(message[1]);
+      USART_Transmit(message[2]);
+
+      const uint8_t address = message[1];
+      const uint8_t data = message[2];
+
+      if (address >= sizeof(pwm_data))
+      {
+        USART_Transmit('O');
+        USART_Transmit('O');
+        USART_Transmit('R');
+      }
+      else
+      {
+        ((uint8_t*)&pwm_data)[address] = data;
+      }
+    }
+    else if (message[0] == WRITE_ID)  // Settings write message
+    {
+      write_settings();
+    }
     else  // Not for me
     {
       USART_Transmit('N');
+      USART_Transmit(message[0]);
     }
   }
 }
@@ -217,6 +314,8 @@ void update_pwm(void)
 int main(void)
 {
   init_hardware();
+
+  init_settings();
 
   while (1)
   {
