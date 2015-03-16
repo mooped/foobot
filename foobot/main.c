@@ -80,9 +80,9 @@ struct SPWMData
 } pwm_data = {
   .idle = 0x00,
   .straight = 0x01,
-  .turn = 0x60,
-  .spin = 0x80,
-  .soft_limit = 0x60
+  .turn = 0xD0,
+  .spin = 0xC0,
+  .soft_limit = 0x80
 };
 
 uint8_t eeprom_read(uint8_t address)
