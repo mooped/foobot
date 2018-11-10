@@ -24,19 +24,19 @@
 #define IS_BROADCAST_ADDR(addr) (memcmp(addr, broadcast_mac, ESP_NOW_ETH_ALEN) == 0)
 
 typedef enum {
-    ESPNOW_SEND_CB,
-    ESPNOW_RECV_CB,
+  ESPNOW_SEND_CB,
+  ESPNOW_RECV_CB,
 } espnow_event_id_t;
 
 typedef struct {
-    uint8_t mac_addr[ESP_NOW_ETH_ALEN];
-    esp_now_send_status_t status;
+  uint8_t mac_addr[ESP_NOW_ETH_ALEN];
+  esp_now_send_status_t status;
 } espnow_event_send_cb_t;
 
 typedef struct {
-    uint8_t mac_addr[ESP_NOW_ETH_ALEN];
-    uint8_t *data;
-    int data_len;
+  uint8_t mac_addr[ESP_NOW_ETH_ALEN];
+  uint8_t *data;
+  int data_len;
 } espnow_event_recv_cb_t;
 
 typedef union {
@@ -49,6 +49,13 @@ typedef struct {
     espnow_event_id_t id;
     espnow_event_info_t info;
 } espnow_event_t;
+
+#define COMMAND_QUEUE_SIZE           256
+
+typedef struct {
+  uint8_t target;
+  uint8_t command;
+} foobot_command_event_t;
 
 typedef enum
 {
@@ -64,6 +71,20 @@ typedef struct {
     uint16_t payload_len;                 // Length of the payload data
     uint8_t payload[0];                   // Real payload of ESPNOW data.
 } __attribute__((packed)) espnow_data_t;
+
+// Station info packet
+typedef enum
+{
+  RO_Station,
+  RO_Bot,
+} role_t;
+
+typedef struct
+{
+  espnow_data_t header;
+  role_t role;
+  
+} __attribute__((packed)) espnow_stationinfo_data_t;
 
 // Foobot data packet
 typedef struct

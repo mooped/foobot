@@ -86,6 +86,8 @@ static esp_err_t event_handler(void *ctx, system_event_t *event)
   return ESP_OK;
 }
 
+static xQueueHandle command_queue;
+
 // Bot states
 #define NUM_BOTS 4
 
@@ -178,16 +180,24 @@ void update_bot(espnow_state_t* state, volatile bot_state_t* bot_state)
   }
 }
 
-// Update the bots based on the current commands
-void update_bots(espnow_state_t* state)
+// Update the bots based on the current commands and send 0 or 1 packets
+int update_bots(espnow_state_t* state)
 {
-  for (int i = 0; i < NUM_BOTS; ++i)
+  static int i = 0;
+  int send_count = 0;
+  if (bots[i].dirty)
   {
-    if (bots[i].dirty)
-    {
-      update_bot(state, &bots[i]);
-    }
+    bots[i].dirty = 0;
+    update_bot(state, &bots[i]);
+    ++send_count;
   }
+
+  if (++i > NUM_BOTS)
+  {
+    i = 0;
+  }
+
+  return send_count;
 }
 
 /* WiFi should start before using ESPNOW */
@@ -327,7 +337,41 @@ int espnow_data_parse(uint8_t *data, uint16_t data_len)
   return -1;
 }
 
-/* Prepare sensor data packet to be sent. */
+/* Prepare station info packet to be sent */
+espnow_packet_param_t espnow_build_stationinfo_packet(espnow_state_t* state, role_t role)
+{
+  espnow_stationinfo_data_t *buf = (espnow_stationinfo_data_t *)state->buffer;
+
+  // Create packet params
+  espnow_packet_param_t packet_params;
+  packet_params.len = sizeof(espnow_data_t) + sizeof(espnow_stationinfo_data_t);
+  packet_params.buffer = (uint8_t*)buf;
+
+  // Fill buffer
+  memset(buf, 0, packet_params.len);
+  buf->header.type = PT_StationInfo;
+  buf->header.payload_len = sizeof(espnow_stationinfo_data_t) - sizeof(espnow_data_t);
+  buf->role = role;
+
+  assert(state->len >= sizeof(espnow_stationinfo_data_t));
+
+  esp_read_mac(buf->header.sender_mac, ESP_MAC_WIFI_STA);
+  buf->header.crc = 0;
+
+  buf->header.crc = crc16_le(UINT16_MAX, (uint8_t const *)buf, sizeof(espnow_stationinfo_data_t));
+
+  return packet_params;
+}
+
+esp_err_t espnow_send_stationinfo(espnow_state_t* state, role_t role)
+{
+  ESP_LOGI(TAG, "Send Station Info");
+  espnow_packet_param_t packet = espnow_build_stationinfo_packet(state, role);
+
+  return esp_now_send(state->dest_mac, packet.buffer, packet.len);
+}
+
+/* Prepare bot command packet to be sent. */
 espnow_packet_param_t espnow_build_command_data_packet(espnow_state_t* state, uint8_t bot, foobot_command_t command)
 {
   espnow_command_data_t *buf = (espnow_command_data_t *)state->buffer;
@@ -356,6 +400,7 @@ espnow_packet_param_t espnow_build_command_data_packet(espnow_state_t* state, ui
 
 esp_err_t espnow_send_command_data(espnow_state_t* state, uint8_t bot, foobot_command_t command)
 {
+  ESP_LOGI(TAG, "Send Command");
   espnow_packet_param_t packet = espnow_build_command_data_packet(state, bot, command);
 
   return esp_now_send(state->dest_mac, packet.buffer, packet.len);
@@ -378,15 +423,13 @@ static void espnow_task(void *pvParameter)
 
 #if !IS_BASESTATION
   /* If we're a sensor, start sending packets */
-  /*
   ESP_LOGI(TAG, "Start sending broadcast data");
-  if (espnow_send_command_data(state) != ESP_OK)
+  if (espnow_send_stationinfo(state, RO_Station) != ESP_OK)
   {
       ESP_LOGE(TAG, "Send error");
       espnow_deinit(state);
       vTaskDelete(NULL);
   }
-  */
 #else
   ESP_LOGI(TAG, "Waiting for data");
 #endif // !IS_BASESTATION
@@ -398,21 +441,56 @@ static void espnow_task(void *pvParameter)
       case ESPNOW_SEND_CB:
       {
         espnow_event_send_cb_t *send_cb = &evt.info.send_cb;
+        ESP_LOGI(TAG, "Sent data from: "MACSTR"", MAC2STR(send_cb->mac_addr));
 
-        /* Send more data now the previous data is sent. */
-        /*
-        ESP_LOGI(TAG, "send data to "MACSTR"", MAC2STR(send_cb->mac_addr));
-        if (espnow_send_command_data(state) != ESP_OK)
+#if !IS_BASESTATION
+        foobot_command_event_t cmd;
+        while (xQueueReceive(command_queue, &cmd, 0) == pdTRUE)
         {
-            ESP_LOGE(TAG, "Send error");
-            espnow_deinit(state);
-            vTaskDelete(NULL);
+          ESP_LOGI(TAG, "Target: %c", cmd.target);
+
+          // Process commands
+          for (int i = 0; i < NUM_BOTS; ++i)
+          {
+            if (bots[i].id == cmd.target)
+            {
+              ESP_LOGI(TAG, "Bot %d updated", i);
+              if (bots[i].command != cmd.command)
+              {
+                bots[i].command = cmd.command;
+                bots[i].dirty = 1;
+              }
+              break;
+            }
+          }
         }
-        */
 
-        /* Wait a bit */
-        //vTaskDelay(1000 / portTICK_PERIOD_MS);
+		    // Update bots and generate commands
+		    ESP_LOGI(TAG, "Command buffer:");
+		    data_dump((void*)&bots, sizeof(bots));
+		    int send_count = update_bots(state);
 
+        // If there were no updates send station info
+        if (send_count == 0)
+        {
+  			  if (espnow_send_stationinfo(state, RO_Station) != ESP_OK)
+  			  {
+  		      ESP_LOGE(TAG, "Send error");
+  		      espnow_deinit(state);
+  		      vTaskDelete(NULL);
+  			  }
+        }
+		
+		    /*
+		    ESP_LOGI(TAG, "Bits: %d", bits);
+		    ESP_LOGI(TAG, "Cycle: %d Counter: %d", cycles, counter);
+		    for (int i = 0; i < 32; ++i)
+		    {
+		      ESP_LOGI(TAG, "Counter: %d State: %d", counter_buffer[i], state_buffer[i]);
+		    }
+		    ESP_LOGI(TAG, "Timer: %d", timer_val);
+		    */
+#endif
         break;
       }
       case ESPNOW_RECV_CB:
@@ -430,28 +508,6 @@ static void espnow_task(void *pvParameter)
         ESP_LOGE(TAG, "Callback type error: %d", evt.id);
         break;
     }
-
-#if IS_BASESTATION == 0
-    // Update bots and generate commands
-    ESP_LOGI(TAG, "Command buffer:");
-    data_dump((void*)&bots, sizeof(bots));
-    update_bots(state);
-
-    // Send out any pending commands
-
-    /*
-    ESP_LOGI(TAG, "Bits: %d", bits);
-    ESP_LOGI(TAG, "Cycle: %d Counter: %d", cycles, counter);
-    for (int i = 0; i < 32; ++i)
-    {
-      ESP_LOGI(TAG, "Counter: %d State: %d", counter_buffer[i], state_buffer[i]);
-    }
-    ESP_LOGI(TAG, "Timer: %d", timer_val);
-    */
-#endif
-
-    // Give other tasks a chance
-    vTaskDelay(1);
   }
 }
 
@@ -461,6 +517,13 @@ static esp_err_t espnow_init(void)
 
     espnow_queue = xQueueCreate(ESPNOW_QUEUE_SIZE, sizeof(espnow_event_t));
     if (espnow_queue == NULL)
+    {
+        ESP_LOGE(TAG, "Create mutex fail");
+        return ESP_FAIL;
+    }
+
+    command_queue = xQueueCreate(COMMAND_QUEUE_SIZE, sizeof(foobot_command_event_t));
+    if (command_queue == NULL)
     {
         ESP_LOGE(TAG, "Create mutex fail");
         return ESP_FAIL;
@@ -516,7 +579,7 @@ static esp_err_t espnow_init(void)
     memcpy(state->dest_mac, broadcast_mac, ESP_NOW_ETH_ALEN);
 
     /* Create the task to send and receive packets */
-    xTaskCreate(espnow_task, "espnow_task", 2048, state, 4, NULL);
+    xTaskCreate(espnow_task, "espnow_task", 8192, state, 4, NULL);
 
     return ESP_OK;
 }
@@ -532,14 +595,15 @@ static void espnow_deinit(espnow_state_t *state)
 // Receive and process commands from the controller interface
 void process_command(uint8_t target, uint8_t command)
 {
-  for (int i = 0; i < NUM_BOTS; ++i)
+  // Queue up commands
+  foobot_command_event_t cmd;
+
+  cmd.target = target;
+  cmd.command = command;
+
+  if (xQueueSend(command_queue, &cmd, portMAX_DELAY) != pdTRUE)
   {
-    if (bots[i].id == target)
-    {
-      bots[i].command = command;
-      bots[i].dirty = 1;
-      break;
-    }
+    ESP_LOGW(TAG, "Send queue fail");
   }
 }
 
@@ -567,14 +631,15 @@ void app_main()
   // Disable motors
   gpio_set_level(EN_A_PIN, 0);
   gpio_set_level(EN_B_PIN, 0);
-#else
-  ESP_LOGI(TAG, "Manchester init...");
-  // Initialise manchester receiver
-  manchester_init(ATAD_PIN);
 #endif
 
   // Initialise ESPNOW
   wifi_init();
   espnow_init();
+
+#if !IS_BASESTATION
+  // Initialise manchester receiver
+  manchester_init(ATAD_PIN);
+#endif
 }
 
