@@ -42,11 +42,11 @@
 #define EN_A_PIN 23
 #define EN_B_PIN 16
 
-#define A1_PIN 27
-#define A2_PIN 26
+#define A1_PIN 26
+#define A2_PIN 27
 
-#define B1_PIN 21
-#define B2_PIN 22
+#define B1_PIN 22
+#define B2_PIN 21
 
 #define OUTPUT_MASK (\
   (1 << EN_A_PIN) | (1 << EN_B_PIN) | \
@@ -679,7 +679,7 @@ void process_command(uint8_t target, uint8_t command)
 
 void app_main()
 {
-    // Initialize NVS
+  // Initialize NVS
   esp_err_t ret = nvs_flash_init();
   if (ret == ESP_ERR_NVS_NO_FREE_PAGES)
   {
@@ -697,6 +697,19 @@ void app_main()
   io_conf.pull_down_en = 1;
   io_conf.pull_up_en = 0;
   gpio_config(&io_conf);
+
+  // Print ID
+  ESP_LOGI(TAG, "===== Bot ID: %c =====", BOT_ID);
+
+  // Indicate motor direction on startup
+  gpio_set_level(A1_PIN, 0);
+  gpio_set_level(A2_PIN, 1);
+  gpio_set_level(B1_PIN, 0);
+  gpio_set_level(B2_PIN, 1);
+  gpio_set_level(EN_A_PIN, 1);
+  gpio_set_level(EN_B_PIN, 1);
+
+  vTaskDelay(500 / portTICK_PERIOD_MS);
 
   // Disable motors
   gpio_set_level(EN_A_PIN, 0);
