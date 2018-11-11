@@ -89,17 +89,19 @@ typedef struct
 // Foobot data packet
 typedef struct
 {
+  uint8_t target;
   int8_t left_dir;
   int8_t left_en;
   int8_t right_dir;
   int8_t right_en;
 } __attribute__((packed)) foobot_command_t;
 
+#define NUM_BOTS 4
+
 typedef struct
 {
   espnow_data_t header;
-  uint8_t target;
-  foobot_command_t command;
+  foobot_command_t command[NUM_BOTS];
 } __attribute__((packed)) espnow_command_data_t;
 
 /* Data about a packet waiting to be sent. */

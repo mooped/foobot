@@ -71,7 +71,7 @@ static uint8_t broadcast_mac[ESP_NOW_ETH_ALEN] = { 0xFF, 0xFF, 0xFF, 0xFF, 0xFF,
 
 static void espnow_deinit(espnow_state_t *state);
 
-esp_err_t espnow_send_command_data(espnow_state_t* state, uint8_t bot, foobot_command_t command);
+esp_err_t espnow_send_command_data(espnow_state_t* state);
 
 static esp_err_t event_handler(void *ctx, system_event_t *event)
 {
@@ -88,9 +88,27 @@ static esp_err_t event_handler(void *ctx, system_event_t *event)
 
 static xQueueHandle command_queue;
 
-// Bot states
-#define NUM_BOTS 4
+static char hex[] = "0123456789abcdef";
 
+/* Dump packet to UART */
+void data_dump(uint8_t* data, uint16_t data_len)
+{
+  uint16_t byte_index = 0;
+  putchar('\r');
+  putchar('\n');
+  while (byte_index < data_len)
+  {
+    for (uint16_t line_char = 0; line_char < 16 && byte_index < data_len; ++line_char, ++byte_index)
+    {
+      putchar(hex[(data[byte_index] & 0xf0) >> 4]);
+      putchar(hex[(data[byte_index] & 0x0f)     ]);
+    }
+    putchar('\r');
+    putchar('\n');
+  }
+}
+
+// Bot states
 typedef struct
 {
   uint8_t id;
@@ -106,11 +124,15 @@ bot_state_t bots[NUM_BOTS] =
   { 'b', 0x00, 0 },
 };
 
+foobot_command_t pending_commands[NUM_BOTS];
+
 void update_bot(espnow_state_t* state, bot_state_t* bot_state)
 {
   if (!state) { return; }
 
   foobot_command_t command;
+
+  command.target = bot_state->id;
 
   if (bot_state->command & BUTTON_B) // Forwards
   {
@@ -175,31 +197,26 @@ void update_bot(espnow_state_t* state, bot_state_t* bot_state)
 
   ESP_LOGI(TAG, "Bot %c State: L: %d (%d) R: %d (%d)", bot_state->id, command.left_dir, command.left_en, command.right_dir, command.right_en);
 
-  // Queue the appropriate commands
-  if (espnow_send_command_data(state, bot_state->id, command) != ESP_OK)
-  {
-    ESP_LOGE(TAG, "Send error");
-  }
 }
 
 // Update the bots based on the current commands and send 0 or 1 packets
 int update_bots(espnow_state_t* state)
 {
-  static int i = 0;
-  int send_count = 0;
-  if (bots[i].dirty)
+  ESP_LOGI(TAG, "Update Bots. Commands:");
+  data_dump((void*)(&bots), sizeof(bots));
+
+  int dirty_count = 0;
+  for (int i = 0; i < NUM_BOTS; ++i)
   {
-    bots[i].dirty = 0;
-    update_bot(state, &bots[i]);
-    ++send_count;
+    if (1 || bots[i].dirty)
+    {
+      bots[i].dirty = 0;
+      update_bot(state, &bots[i]);
+      ++dirty_count;
+    }
   }
 
-  if (++i > NUM_BOTS)
-  {
-    i = 0;
-  }
-
-  return send_count;
+  return dirty_count;
 }
 
 /* WiFi should start before using ESPNOW */
@@ -271,26 +288,6 @@ static void espnow_recv_cb(const uint8_t *mac_addr, const uint8_t *data, int len
   }
 }
 
-static char hex[] = "0123456789abcdef";
-
-/* Dump packet to UART */
-void data_dump(uint8_t* data, uint16_t data_len)
-{
-  uint16_t byte_index = 0;
-  putchar('\r');
-  putchar('\n');
-  while (byte_index < data_len)
-  {
-    for (uint16_t line_char = 0; line_char < 16 && byte_index < data_len; ++line_char, ++byte_index)
-    {
-      putchar(hex[(data[byte_index] & 0xf0) >> 4]);
-      putchar(hex[(data[byte_index] & 0x0f)     ]);
-    }
-    putchar('\r');
-    putchar('\n');
-  }
-}
-
 /* Parse received ESPNOW data. */
 int espnow_data_parse(uint8_t *data, uint16_t data_len)
 {
@@ -326,50 +323,53 @@ int espnow_data_parse(uint8_t *data, uint16_t data_len)
         case PT_Command:
         {
           espnow_command_data_t* command_data = (espnow_command_data_t*)data;
-          ESP_LOGI(TAG, "Got Command for %d", command_data->target);
-          if (command_data->target == '1')
+          for (int i = 0; i < NUM_BOTS; ++i)
           {
-            foobot_command_t command = command_data->command;
+            foobot_command_t* command = &(command_data->command[i]);
+            if (command->target == '1')
+            {
+              ESP_LOGI(TAG, "Got Command for %d", command->target);
 
-            // Left motor direction
-            if (command.left_dir > 0)
-            {
-              gpio_set_level(A1_PIN, 0);
-              gpio_set_level(A2_PIN, 1);
-
+              // Left motor direction
+              if (command->left_dir > 0)
+              {
+                gpio_set_level(A1_PIN, 0);
+                gpio_set_level(A2_PIN, 1);
+  
+              }
+              else if (command->left_dir < 0)
+              {
+                gpio_set_level(A1_PIN, 1);
+                gpio_set_level(A2_PIN, 0);
+              }
+              else
+              {
+                gpio_set_level(A1_PIN, 0);
+                gpio_set_level(A2_PIN, 0);
+              }
+  
+              // Right motor direction
+              if (command->right_dir > 0)
+              {
+                gpio_set_level(B1_PIN, 0);
+                gpio_set_level(B2_PIN, 1);
+  
+              }
+              else if (command->right_dir < 0)
+              {
+                gpio_set_level(B1_PIN, 1);
+                gpio_set_level(B2_PIN, 0);
+              }
+              else
+              {
+                gpio_set_level(B1_PIN, 0);
+                gpio_set_level(B2_PIN, 0);
+              }
+  
+              // Motor enables
+              gpio_set_level(EN_A_PIN, command->left_en);
+              gpio_set_level(EN_B_PIN, command->right_en);
             }
-            else if (command.left_dir < 0)
-            {
-              gpio_set_level(A1_PIN, 1);
-              gpio_set_level(A2_PIN, 0);
-            }
-            else
-            {
-              gpio_set_level(A1_PIN, 0);
-              gpio_set_level(A2_PIN, 0);
-            }
-
-            // Right motor direction
-            if (command.right_dir > 0)
-            {
-              gpio_set_level(B1_PIN, 0);
-              gpio_set_level(B2_PIN, 1);
-
-            }
-            else if (command.right_dir < 0)
-            {
-              gpio_set_level(B1_PIN, 1);
-              gpio_set_level(B2_PIN, 0);
-            }
-            else
-            {
-              gpio_set_level(B1_PIN, 0);
-              gpio_set_level(B2_PIN, 0);
-            }
-
-            // Motor enables
-            gpio_set_level(EN_A_PIN, command.left_en);
-            gpio_set_level(EN_B_PIN, command.right_en);
           }
 
           // Just write out the data
@@ -422,7 +422,7 @@ esp_err_t espnow_send_stationinfo(espnow_state_t* state, role_t role)
 }
 
 /* Prepare bot command packet to be sent. */
-espnow_packet_param_t espnow_build_command_data_packet(espnow_state_t* state, uint8_t bot, foobot_command_t command)
+espnow_packet_param_t espnow_build_command_data_packet(espnow_state_t* state)
 {
   espnow_command_data_t *buf = (espnow_command_data_t *)state->buffer;
 
@@ -435,8 +435,8 @@ espnow_packet_param_t espnow_build_command_data_packet(espnow_state_t* state, ui
   memset(buf, 0, packet_params.len);
   buf->header.type = PT_Command;
   buf->header.payload_len = sizeof(espnow_command_data_t) - sizeof(espnow_data_t);
-  buf->target = bot;
-  buf->command = command;
+  // Copy in pending commands
+  memcpy(buf, &pending_commands, sizeof(pending_commands));
 
   assert(state->len >= sizeof(espnow_command_data_t));
 
@@ -451,10 +451,10 @@ espnow_packet_param_t espnow_build_command_data_packet(espnow_state_t* state, ui
   return packet_params;
 }
 
-esp_err_t espnow_send_command_data(espnow_state_t* state, uint8_t bot, foobot_command_t command)
+esp_err_t espnow_send_command_data(espnow_state_t* state)
 {
   ESP_LOGI(TAG, "Send Command");
-  espnow_packet_param_t packet = espnow_build_command_data_packet(state, bot, command);
+  espnow_packet_param_t packet = espnow_build_command_data_packet(state);
 
   return esp_now_send(state->dest_mac, packet.buffer, packet.len);
 }
@@ -498,6 +498,7 @@ static void espnow_task(void *pvParameter)
 
 #if !IS_BASESTATION
         foobot_command_event_t cmd;
+        int num_commands = 0;
         while (xQueueReceive(command_queue, &cmd, 0) == pdTRUE)
         {
           // Process commands
@@ -509,18 +510,26 @@ static void espnow_task(void *pvParameter)
               {
                 ESP_LOGI(TAG, "Bot %c updated", bots[i].id);
                 bots[i].command = cmd.command;
-                //bots[i].dirty = 1;
+                bots[i].dirty = 1;
               }
               break;
             }
           }
+          ++num_commands;
         }
+        ESP_LOGI(TAG, "Processed %d commands.", num_commands);
 
 		    // Update bots and generate commands
-		    int send_count = update_bots(state);
+		    int dirty_count = update_bots(state);
+
+        // Queue the appropriate commands
+        if (espnow_send_command_data(state) != ESP_OK)
+        {
+          ESP_LOGE(TAG, "Send error");
+        }
 
         // If there were no updates send station info
-        if (send_count == 0)
+        if (0 && dirty_count == 0)
         {
   			  if (espnow_send_stationinfo(state, RO_Station) != ESP_OK)
   			  {
@@ -529,6 +538,8 @@ static void espnow_task(void *pvParameter)
   		      vTaskDelete(NULL);
   			  }
         }
+
+        //vTaskDelay(100 / portTICK_PERIOD_MS);
 		
 		    /*
 		    ESP_LOGI(TAG, "Bits: %d", bits);
