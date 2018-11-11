@@ -89,10 +89,10 @@ typedef struct
 // Foobot data packet
 typedef struct
 {
-  uint8_t left_dir;
-  uint8_t left_en;
-  uint8_t right_dir;
-  uint8_t right_en;
+  int8_t left_dir;
+  int8_t left_en;
+  int8_t right_dir;
+  int8_t right_en;
 } __attribute__((packed)) foobot_command_t;
 
 typedef struct

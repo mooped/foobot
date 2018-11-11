@@ -98,15 +98,15 @@ typedef struct
   uint8_t dirty;
 } bot_state_t;
 
-volatile bot_state_t bots[NUM_BOTS] =
+bot_state_t bots[NUM_BOTS] =
 {
-  { '1', 0xff, 0 },
-  { '2', 0xff, 0 },
-  { 'a', 0xff, 0 },
-  { 'b', 0xff, 0 },
+  { '1', 0x00, 0 },
+  { '2', 0x00, 0 },
+  { 'a', 0x00, 0 },
+  { 'b', 0x00, 0 },
 };
 
-void update_bot(espnow_state_t* state, volatile bot_state_t* bot_state)
+void update_bot(espnow_state_t* state, bot_state_t* bot_state)
 {
   if (!state) { return; }
 
@@ -172,6 +172,8 @@ void update_bot(espnow_state_t* state, volatile bot_state_t* bot_state)
       command.right_dir = 0;
     }
   }
+
+  ESP_LOGI(TAG, "Bot %c State: L: %d (%d) R: %d (%d)", bot_state->id, command.left_dir, command.left_en, command.right_dir, command.right_en);
 
   // Queue the appropriate commands
   if (espnow_send_command_data(state, bot_state->id, command) != ESP_OK)
@@ -284,9 +286,9 @@ void data_dump(uint8_t* data, uint16_t data_len)
       putchar(hex[(data[byte_index] & 0xf0) >> 4]);
       putchar(hex[(data[byte_index] & 0x0f)     ]);
     }
+    putchar('\r');
+    putchar('\n');
   }
-  putchar('\r');
-  putchar('\n');
 }
 
 /* Parse received ESPNOW data. */
@@ -318,10 +320,58 @@ int espnow_data_parse(uint8_t *data, uint16_t data_len)
       {
         case PT_StationInfo:
         {
-          assert(0 && "Station Info packets not yet implemented!");
+          ESP_LOGI(TAG, "Got Station Info");
+          data_dump(data, packet_size);
         } break;
         case PT_Command:
         {
+          espnow_command_data_t* command_data = (espnow_command_data_t*)data;
+          ESP_LOGI(TAG, "Got Command for %d", command_data->target);
+          if (command_data->target == '1')
+          {
+            foobot_command_t command = command_data->command;
+
+            // Left motor direction
+            if (command.left_dir > 0)
+            {
+              gpio_set_level(A1_PIN, 0);
+              gpio_set_level(A2_PIN, 1);
+
+            }
+            else if (command.left_dir < 0)
+            {
+              gpio_set_level(A1_PIN, 1);
+              gpio_set_level(A2_PIN, 0);
+            }
+            else
+            {
+              gpio_set_level(A1_PIN, 0);
+              gpio_set_level(A2_PIN, 0);
+            }
+
+            // Right motor direction
+            if (command.right_dir > 0)
+            {
+              gpio_set_level(B1_PIN, 0);
+              gpio_set_level(B2_PIN, 1);
+
+            }
+            else if (command.right_dir < 0)
+            {
+              gpio_set_level(B1_PIN, 1);
+              gpio_set_level(B2_PIN, 0);
+            }
+            else
+            {
+              gpio_set_level(B1_PIN, 0);
+              gpio_set_level(B2_PIN, 0);
+            }
+
+            // Motor enables
+            gpio_set_level(EN_A_PIN, command.left_en);
+            gpio_set_level(EN_B_PIN, command.right_en);
+          }
+
           // Just write out the data
           data_dump(data, packet_size);
         } break;
@@ -395,6 +445,9 @@ espnow_packet_param_t espnow_build_command_data_packet(espnow_state_t* state, ui
 
   buf->header.crc = crc16_le(UINT16_MAX, (uint8_t const *)buf, sizeof(espnow_command_data_t));
 
+  ESP_LOGI(TAG, "Command packet: ");
+  data_dump(packet_params.buffer, packet_params.len);
+
   return packet_params;
 }
 
@@ -447,18 +500,16 @@ static void espnow_task(void *pvParameter)
         foobot_command_event_t cmd;
         while (xQueueReceive(command_queue, &cmd, 0) == pdTRUE)
         {
-          ESP_LOGI(TAG, "Target: %c", cmd.target);
-
           // Process commands
           for (int i = 0; i < NUM_BOTS; ++i)
           {
             if (bots[i].id == cmd.target)
             {
-              ESP_LOGI(TAG, "Bot %d updated", i);
               if (bots[i].command != cmd.command)
               {
+                ESP_LOGI(TAG, "Bot %c updated", bots[i].id);
                 bots[i].command = cmd.command;
-                bots[i].dirty = 1;
+                //bots[i].dirty = 1;
               }
               break;
             }
@@ -466,8 +517,6 @@ static void espnow_task(void *pvParameter)
         }
 
 		    // Update bots and generate commands
-		    ESP_LOGI(TAG, "Command buffer:");
-		    data_dump((void*)&bots, sizeof(bots));
 		    int send_count = update_bots(state);
 
         // If there were no updates send station info
