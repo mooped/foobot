@@ -32,16 +32,18 @@
 #include "manchester.h"
 #include "espnow_types.h"
 
+#define BOT_ID 'b'
+
 // IS_BASESTATION = 0 - read controllers, transmit data
 // IS_BASESTATION = 1 - wait for packets, do stuff
-#define IS_BASESTATION 0
+#define IS_BASESTATION 1
 
 // Motor pins
 #define EN_A_PIN 23
 #define EN_B_PIN 16
 
-#define A1_PIN 26
-#define A2_PIN 27
+#define A1_PIN 27
+#define A2_PIN 26
 
 #define B1_PIN 21
 #define B2_PIN 22
@@ -126,81 +128,80 @@ bot_state_t bots[NUM_BOTS] =
 
 foobot_command_t pending_commands[NUM_BOTS];
 
-void update_bot(espnow_state_t* state, bot_state_t* bot_state)
+void update_bot(int index)
 {
-  if (!state) { return; }
+  bot_state_t* bot_state = &(bots[index]);
+  foobot_command_t* command = &(pending_commands[index]);
 
-  foobot_command_t command;
-
-  command.target = bot_state->id;
+  command->target = bot_state->id;
 
   if (bot_state->command & BUTTON_B) // Forwards
   {
     if ((bot_state->command & BUTTON_R) == 0)
     {
-      command.left_dir = 1;
-      command.left_en = 1;
+      command->left_dir = 1;
+      command->left_en = 1;
     }
     else
     {
-      command.left_dir = 0;
-      command.left_en = 0;
+      command->left_dir = 0;
+      command->left_en = 0;
     }
     if ((bot_state->command & BUTTON_L) == 0)
     {
-      command.right_dir = 1;
-      command.right_en = 1;
+      command->right_dir = 1;
+      command->right_en = 1;
     }
     else
     {
-      command.right_dir = 0;
-      command.right_en = 0;
+      command->right_dir = 0;
+      command->right_en = 0;
     }
   }
   else if (bot_state->command & BUTTON_A)  // Reverse
   {
     if ((bot_state->command & BUTTON_R) == 0)
     {
-      command.left_dir = -1;
-      command.left_en = 1;
+      command->left_dir = -1;
+      command->left_en = 1;
     }
     if ((bot_state->command & BUTTON_L) == 0)
     {
-      command.right_dir = -1;
-      command.right_en = 1;
+      command->right_dir = -1;
+      command->right_en = 1;
     }
   }
   else  // Spinning or braking
   {
     if (bot_state->command & BUTTON_L) // Spin left
     {
-      command.left_dir = -1;
-      command.left_en = 1;
-      command.right_dir = 1;
-      command.right_en = 1;
+      command->left_dir = -1;
+      command->left_en = 1;
+      command->right_dir = 1;
+      command->right_en = 1;
     }
     else if (bot_state->command & BUTTON_R)  // Spin right
     {
-      command.left_dir = 1;
-      command.left_en = 1;
-      command.right_dir = -1;
-      command.right_en = 1;
+      command->left_dir = 1;
+      command->left_en = 1;
+      command->right_dir = -1;
+      command->right_en = 1;
     }
     else  // Brake
     {
-      command.left_en = 1;
-      command.right_en = 1;
-      command.left_dir = 0;
-      command.right_dir = 0;
+      command->left_en = 1;
+      command->right_en = 1;
+      command->left_dir = 0;
+      command->right_dir = 0;
     }
   }
 
-  ESP_LOGI(TAG, "Bot %c State: L: %d (%d) R: %d (%d)", bot_state->id, command.left_dir, command.left_en, command.right_dir, command.right_en);
+  ESP_LOGI(TAG, "Bot %c State: L: %d (%d) R: %d (%d)", bot_state->id, command->left_dir, command->left_en, command->right_dir, command->right_en);
 
 }
 
 // Update the bots based on the current commands and send 0 or 1 packets
-int update_bots(espnow_state_t* state)
+int update_bots(void)
 {
   ESP_LOGI(TAG, "Update Bots. Commands:");
   data_dump((void*)(&bots), sizeof(bots));
@@ -208,10 +209,10 @@ int update_bots(espnow_state_t* state)
   int dirty_count = 0;
   for (int i = 0; i < NUM_BOTS; ++i)
   {
-    if (1 || bots[i].dirty)
+    if (bots[i].dirty)
     {
       bots[i].dirty = 0;
-      update_bot(state, &bots[i]);
+      update_bot(i);
       ++dirty_count;
     }
   }
@@ -304,6 +305,8 @@ int espnow_data_parse(uint8_t *data, uint16_t data_len)
   // Read packet size
   size_t packet_size = sizeof(espnow_data_t) + buf->payload_len;
 
+  ESP_LOGI(TAG, "Packet size: %d", packet_size);
+
   // Check CRC now we know the size of the packet
   crc = buf->crc;
   buf->crc = 0; // Zero CRC so we can recalculate correctly
@@ -326,7 +329,7 @@ int espnow_data_parse(uint8_t *data, uint16_t data_len)
           for (int i = 0; i < NUM_BOTS; ++i)
           {
             foobot_command_t* command = &(command_data->command[i]);
-            if (command->target == '1')
+            if (command->target == BOT_ID)
             {
               ESP_LOGI(TAG, "Got Command for %d", command->target);
 
@@ -383,6 +386,10 @@ int espnow_data_parse(uint8_t *data, uint16_t data_len)
 
       return 0;
   }
+  else
+  {
+    ESP_LOGI(TAG, "CRC Mismatch");
+  }
 
   return -1;
 }
@@ -436,7 +443,10 @@ espnow_packet_param_t espnow_build_command_data_packet(espnow_state_t* state)
   buf->header.type = PT_Command;
   buf->header.payload_len = sizeof(espnow_command_data_t) - sizeof(espnow_data_t);
   // Copy in pending commands
-  memcpy(buf, &pending_commands, sizeof(pending_commands));
+  for (int i = 0; i < NUM_BOTS; ++i)
+  {
+    buf->command[i] = pending_commands[i];
+  }
 
   assert(state->len >= sizeof(espnow_command_data_t));
 
@@ -520,7 +530,7 @@ static void espnow_task(void *pvParameter)
         ESP_LOGI(TAG, "Processed %d commands.", num_commands);
 
 		    // Update bots and generate commands
-		    int dirty_count = update_bots(state);
+		    int dirty_count = update_bots();
 
         // Queue the appropriate commands
         if (espnow_send_command_data(state) != ESP_OK)
