@@ -129,6 +129,24 @@ bot_state_t bots[NUM_BOTS] =
   { 'b', 0x00, 0 },
 };
 
+// Bot configs (motor reversing, swaps)
+typedef struct
+{
+  uint8_t left_rev;
+  uint8_t right_rev;
+  uint8_t swap;
+} __attribute__((packed)) bot_config_t;
+
+bot_config_t bot_configs[NUM_BOTS] =
+{
+  //L  R  S
+  { 0, 0, 0 }, // 1
+  { 0, 0, 0 }, // 2
+  { 0, 0, 0 }, // a
+  { 0, 0, 0 }, // b
+};
+
+// Processed bot commands
 foobot_command_t pending_commands[NUM_BOTS];
 
 void update_bot(int index)
@@ -136,8 +154,10 @@ void update_bot(int index)
   bot_state_t* bot_state = &(bots[index]);
   foobot_command_t* command = &(pending_commands[index]);
 
+  // Set target
   command->target = bot_state->id;
 
+  // Convert command into motor states
   if (bot_state->command & BUTTON_B) // Forwards
   {
     if ((bot_state->command & BUTTON_R) == 0)
@@ -197,6 +217,25 @@ void update_bot(int index)
       command->left_dir = 0;
       command->right_dir = 0;
     }
+  }
+
+  // Apply config
+  if (bot_configs[index].swap) // Swap the two motors
+  {
+    int temp_dir = command->left_dir;
+    int temp_en = command->left_en;
+    command->left_dir = command->right_dir;
+    command->left_en = command->right_en;
+    command->right_dir = temp_dir;
+    command->right_en = temp_en;
+  }
+  if (bot_configs[index].left_rev) // Swap left motor direction
+  {
+    command->left_dir = -command->left_dir;
+  }
+  if (bot_configs[index].right_rev)  // Swap right motor direction
+  {
+    command->right_dir = -command->right_dir;
   }
 
   ESP_LOGI(TAG, "Bot %c State: L: %d (%d) R: %d (%d)", bot_state->id, command->left_dir, command->left_en, command->right_dir, command->right_en);
