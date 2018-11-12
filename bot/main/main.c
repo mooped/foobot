@@ -140,9 +140,9 @@ typedef struct
 bot_config_t bot_configs[NUM_BOTS] =
 {
   //L  R  S
-  { 0, 0, 0 }, // 1
-  { 0, 0, 0 }, // 2
-  { 0, 0, 0 }, // a
+  { 0, 1, 0 }, // 1
+  { 1, 1, 0 }, // 2
+  { 1, 1, 0 }, // a
   { 0, 0, 0 }, // b
 };
 
@@ -160,7 +160,7 @@ void update_bot(int index)
   // Convert command into motor states
   if (bot_state->command & BUTTON_B) // Forwards
   {
-    if ((bot_state->command & BUTTON_R) == 0)
+    if ((bot_state->command & BUTTON_L) == 0)
     {
       command->left_dir = 1;
       command->left_en = 1;
@@ -170,7 +170,7 @@ void update_bot(int index)
       command->left_dir = 0;
       command->left_en = 0;
     }
-    if ((bot_state->command & BUTTON_L) == 0)
+    if ((bot_state->command & BUTTON_R) == 0)
     {
       command->right_dir = 1;
       command->right_en = 1;
@@ -188,10 +188,20 @@ void update_bot(int index)
       command->left_dir = -1;
       command->left_en = 1;
     }
+    else
+    {
+      command->left_dir = 0;
+      command->left_en = 0;
+    }
     if ((bot_state->command & BUTTON_L) == 0)
     {
       command->right_dir = -1;
       command->right_en = 1;
+    }
+    else
+    {
+      command->right_dir = 0;
+      command->right_en = 0;
     }
   }
   else  // Spinning or braking
@@ -526,13 +536,11 @@ static void espnow_task(void *pvParameter)
   espnow_state_t *state = (espnow_state_t *)pvParameter;
 
   // SPI Debug
-  /*
-  while (1)
+  while (0)
   {
     spi_read();
     vTaskDelay(100 / portTICK_PERIOD_MS);
   }
-  */
 
 #if !IS_BASESTATION
   /* If we're a sensor, start sending packets */

@@ -37,7 +37,7 @@ void spi_read()
 
       phase = 1;
     }
-    else
+    else if (phase == 1)
     {
       // Read this bit from both channels
       const uint16_t ch1_val = gpio_get_level(ch1);
@@ -47,7 +47,10 @@ void spi_read()
       ch2_buf = (ch2_buf << 1) | ch2_val;
 
       //ESP_LOGI(TAG, "Ch1: %x (%d) Ch2: %x (%d)", ch1_buf, ch1_val, ch2_buf, ch2_val);
-   
+      phase = 2;
+    }
+    else
+    {
       // Clear latch and clock
       gpio_set_level(latch, 0);
       gpio_set_level(clock, 0);
