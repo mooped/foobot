@@ -30,13 +30,16 @@
 #include "rom/crc.h"
 
 #include "manchester.h"
+
+#include "spi.h"
+
 #include "espnow_types.h"
 
 #define BOT_ID 'b'
 
 // IS_BASESTATION = 0 - read controllers, transmit data
 // IS_BASESTATION = 1 - wait for packets, do stuff
-#define IS_BASESTATION 1
+#define IS_BASESTATION 0
 
 // Motor pins
 #define EN_A_PIN 23
@@ -58,8 +61,8 @@
 #define ATAD_PIN 23
 
 // Controller button mappings
-#define BUTTON_A (1<<5)
-#define BUTTON_B (1<<4)
+#define BUTTON_A (1<<7)
+#define BUTTON_B (1<<6)
 #define BUTTON_U (1<<3)
 #define BUTTON_D (1<<2)
 #define BUTTON_L (1<<1)
@@ -197,7 +200,6 @@ void update_bot(int index)
   }
 
   ESP_LOGI(TAG, "Bot %c State: L: %d (%d) R: %d (%d)", bot_state->id, command->left_dir, command->left_en, command->right_dir, command->right_en);
-
 }
 
 // Update the bots based on the current commands and send 0 or 1 packets
@@ -484,6 +486,15 @@ static void espnow_task(void *pvParameter)
 
   espnow_state_t *state = (espnow_state_t *)pvParameter;
 
+  // SPI Debug
+  /*
+  while (1)
+  {
+    spi_read();
+    vTaskDelay(100 / portTICK_PERIOD_MS);
+  }
+  */
+
 #if !IS_BASESTATION
   /* If we're a sensor, start sending packets */
   ESP_LOGI(TAG, "Start sending broadcast data");
@@ -507,6 +518,11 @@ static void espnow_task(void *pvParameter)
         ESP_LOGI(TAG, "Sent data from: "MACSTR"", MAC2STR(send_cb->mac_addr));
 
 #if !IS_BASESTATION
+        // Read controllers via SPI
+        spi_read();
+
+        // Handle bot updates
+        /*
         foobot_command_event_t cmd;
         int num_commands = 0;
         while (xQueueReceive(command_queue, &cmd, 0) == pdTRUE)
@@ -518,16 +534,17 @@ static void espnow_task(void *pvParameter)
             {
               if (bots[i].command != cmd.command)
               {
-                ESP_LOGI(TAG, "Bot %c updated", bots[i].id);
                 bots[i].command = cmd.command;
                 bots[i].dirty = 1;
+                ESP_LOGI(TAG, "Bot %c updated to %x", bots[i].id, bots[i].command);
               }
               break;
             }
           }
           ++num_commands;
         }
-        ESP_LOGI(TAG, "Processed %d commands.", num_commands);
+        //ESP_LOGI(TAG, "Processed %d commands.", num_commands);
+        */
 
 		    // Update bots and generate commands
 		    int dirty_count = update_bots();
@@ -549,9 +566,10 @@ static void espnow_task(void *pvParameter)
   			  }
         }
 
-        //vTaskDelay(100 / portTICK_PERIOD_MS);
-		
+        //vTaskDelay(1000 / portTICK_PERIOD_MS);
+
 		    /*
+        // Manchester debugging info
 		    ESP_LOGI(TAG, "Bits: %d", bits);
 		    ESP_LOGI(TAG, "Cycle: %d Counter: %d", cycles, counter);
 		    for (int i = 0; i < 32; ++i)
@@ -662,6 +680,8 @@ static void espnow_deinit(espnow_state_t *state)
     esp_now_deinit();
 }
 
+extern uint16_t ch1_buf, ch2_buf;
+
 // Receive and process commands from the controller interface
 void process_command(uint8_t target, uint8_t command)
 {
@@ -671,10 +691,29 @@ void process_command(uint8_t target, uint8_t command)
   cmd.target = target;
   cmd.command = command;
 
+  // Just handle the command directly
+  for (int i = 0; i < NUM_BOTS; ++i)
+  {
+    if (bots[i].id == cmd.target)
+    {
+      if (bots[i].command != cmd.command)
+      {
+        bots[i].command = cmd.command;
+        bots[i].dirty = 1;
+        ESP_LOGI(TAG, "Bot %c updated to %x", bots[i].id, bots[i].command);
+        ESP_LOGI(TAG, "Ch1: %x Ch2: %x", ch1_buf, ch2_buf);
+      }
+      break;
+    }
+  }
+
+  /*
+  // Queue the command for processing later
   if (xQueueSend(command_queue, &cmd, portMAX_DELAY) != pdTRUE)
   {
     ESP_LOGW(TAG, "Send queue fail");
   }
+  */
 }
 
 void app_main()
@@ -721,8 +760,13 @@ void app_main()
   espnow_init();
 
 #if !IS_BASESTATION
+#if 0
   // Initialise manchester receiver
   manchester_init(ATAD_PIN);
+#else
+  // Initialise SPI reader
+  spi_init(23, 22, 18, 19);
+#endif
 #endif
 }
 

@@ -28,8 +28,11 @@ void on_message_start(void)
   message[2] = 0;
 }
 
+static int dbg = 0;
+
 void on_byte_recieved(char data)
 {
+  gpio_set_level(22, (dbg++) % 2);
   message[message_byte++] = data;
   if (message_byte == 3)
   {
@@ -234,7 +237,6 @@ void manchester_interrupt(void* pArg)
 
 void manchester_timer_callback(void* pArg)
 {
-  //gpio_set_level(22, timer_val % 2);
   if (timer_val == 0xffffffff)
   {
     timer_val = 0;
@@ -259,7 +261,6 @@ void manchester_init(gpio_num_t manchester_pin)
   io_conf.pull_up_en = 0;
   gpio_config(&io_conf);
 
-  /*
   // Configure debug output
   io_conf.intr_type = GPIO_PIN_INTR_DISABLE;
   io_conf.mode = GPIO_MODE_OUTPUT;
@@ -269,7 +270,6 @@ void manchester_init(gpio_num_t manchester_pin)
   gpio_config(&io_conf);
 
   gpio_set_level(22, 1);
-  */
 
   // Initialise timer
   const esp_timer_create_args_t periodic_timer_args =
