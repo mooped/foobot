@@ -32,6 +32,7 @@
 #include "manchester.h"
 #include "spi.h"
 #include "led.h"
+#include "battery.h"
 
 #include "espnow_types.h"
 
@@ -775,6 +776,10 @@ void app_main()
   ESP_ERROR_CHECK( ret );
 
 #if IS_BASESTATION
+  // Get battery level
+  battery_init(ADC1_CHANNEL_7);
+  ESP_LOGI(TAG, "Battery voltage: %f", battery_read_voltage());
+
   // Configure outputs
   gpio_config_t io_conf;
   io_conf.intr_type = GPIO_PIN_INTR_DISABLE;
