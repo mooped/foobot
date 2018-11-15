@@ -30,8 +30,8 @@
 #include "rom/crc.h"
 
 #include "manchester.h"
-
 #include "spi.h"
+#include "led.h"
 
 #include "espnow_types.h"
 
@@ -39,7 +39,7 @@
 
 // IS_BASESTATION = 0 - read controllers, transmit data
 // IS_BASESTATION = 1 - wait for packets, do stuff
-#define IS_BASESTATION 0
+#define IS_BASESTATION 1
 
 // Motor pins
 #define EN_A_PIN 23
@@ -784,6 +784,10 @@ void app_main()
   io_conf.pull_up_en = 0;
   gpio_config(&io_conf);
 
+  // Initialise and flash LED
+  led_init();
+  led_set(1);
+
   // Print ID
   ESP_LOGI(TAG, "===== Bot ID: %c =====", BOT_ID);
 
@@ -800,6 +804,9 @@ void app_main()
   // Disable motors
   gpio_set_level(EN_A_PIN, 0);
   gpio_set_level(EN_B_PIN, 0);
+
+  // Turn LED off again
+  led_set(0);
 #endif
 
   // Initialise ESPNOW
