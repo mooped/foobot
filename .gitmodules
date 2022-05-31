@@ -1,0 +1,3 @@
+[submodule "foobot/virtualjoystick.js"]
+	path = foobot/virtualjoystick.js
+	url = https://github.com/jeromeetienne/virtualjoystick.js

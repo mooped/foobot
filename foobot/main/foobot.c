@@ -10,6 +10,9 @@
 
 #include "wifi.h"
 
+#include "joystick.inc"
+#include "virtualjoystick.inc"
+
 static const char *TAG = "foobot_ws";
 
 /*
@@ -110,62 +113,42 @@ static const httpd_uri_t ws = {
     .is_websocket = true
 };
 
-/* Our URI handler function to be called during GET /uri request */
-esp_err_t get_handler(httpd_req_t *req)
+typedef struct
 {
-    /* Send a simple response */
-    const char resp[] = "URI GET Response";
-    httpd_resp_send(req, resp, HTTPD_RESP_USE_STRLEN);
-    return ESP_OK;
-}
+  const unsigned char* data;
+  unsigned int size;
+} static_resource_t;
 
-/* URI handler structure for GET /uri */
-httpd_uri_t uri_get = {
-    .uri      = "/uri",
-    .method   = HTTP_GET,
-    .handler  = get_handler,
-    .user_ctx = NULL
+static_resource_t joystick_html_resource = {
+  .data = main_joystick_html,
+  .size = sizeof(main_joystick_html) / sizeof(char),
 };
 
-/* Our URI handler function to be called during POST /uri request */
-esp_err_t post_handler(httpd_req_t *req)
+static_resource_t virtualjoystick_js_resource = {
+  .data = virtualjoystick_js_virtualjoystick_js,
+  .size = sizeof(virtualjoystick_js_virtualjoystick_js) / sizeof(char),
+};
+
+/* URI handler to GET a static resource */
+esp_err_t get_handler_static(httpd_req_t *req)
 {
-    /* Destination buffer for content of HTTP POST request.
-     * httpd_req_recv() accepts char* only, but content could
-     * as well be any binary data (needs type casting).
-     * In case of string data, null termination will be absent, and
-     * content length would give length of string */
-    char content[100];
-
-    /* Truncate if content length larger than the buffer */
-    size_t recv_size = MIN(req->content_len, sizeof(content));
-
-    int ret = httpd_req_recv(req, content, recv_size);
-    if (ret <= 0) {  /* 0 return value indicates connection closed */
-        /* Check if timeout occurred */
-        if (ret == HTTPD_SOCK_ERR_TIMEOUT) {
-            /* In case of timeout one can choose to retry calling
-             * httpd_req_recv(), but to keep it simple, here we
-             * respond with an HTTP 408 (Request Timeout) error */
-            httpd_resp_send_408(req);
-        }
-        /* In case of error, returning ESP_FAIL will
-         * ensure that the underlying socket is closed */
-        return ESP_FAIL;
-    }
-
-    /* Send a simple response */
-    const char resp[] = "URI POST Response";
-    httpd_resp_send(req, resp, HTTPD_RESP_USE_STRLEN);
-    return ESP_OK;
+  static_resource_t* resource = (static_resource_t*)(req->user_ctx);
+  httpd_resp_send(req, (const char*)resource->data, resource->size);
+  return ESP_OK;
 }
 
-/* URI handler structure for POST /uri */
-httpd_uri_t uri_post = {
-    .uri      = "/uri",
-    .method   = HTTP_POST,
-    .handler  = post_handler,
-    .user_ctx = NULL
+/* URI handler structures for static GETs */
+httpd_uri_t uri_get_joystick_html = {
+    .uri      = "/",
+    .method   = HTTP_GET,
+    .handler  = get_handler_static,
+    .user_ctx = &joystick_html_resource,
+};
+httpd_uri_t uri_get_virtualjoystick_js = {
+    .uri      = "/virtualjoystick.js",
+    .method   = HTTP_GET,
+    .handler  = get_handler_static,
+    .user_ctx = &virtualjoystick_js_resource,
 };
 
 static httpd_handle_t start_webserver(void)
@@ -179,8 +162,8 @@ static httpd_handle_t start_webserver(void)
     // Registering the ws handler
     ESP_LOGI(TAG, "Registering URI handlers");
     httpd_register_uri_handler(server, &ws);
-    httpd_register_uri_handler(server, &uri_get);
-    httpd_register_uri_handler(server, &uri_post);
+    httpd_register_uri_handler(server, &uri_get_joystick_html);
+    httpd_register_uri_handler(server, &uri_get_virtualjoystick_js);
     return server;
   }
 
