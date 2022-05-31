@@ -5,15 +5,22 @@
 #include <nvs_flash.h>
 #include <sys/param.h>
 #include <esp_http_server.h>
-#include "esp_netif.h"
-#include "esp_eth.h"
+#include <esp_netif.h>
+#include <esp_eth.h>
+
+#include <cJSON.h>
+#include <freertos/timers.h>
 
 #include "wifi.h"
+#include "led.h"
+#include "motor.h"
 
 #include "joystick.inc"
 #include "virtualjoystick.inc"
 
 static const char *TAG = "foobot_ws";
+
+TimerHandle_t xFailsafeTimer = NULL;
 
 /*
  * Structure holding server handle
@@ -95,6 +102,30 @@ static esp_err_t echo_handler(httpd_req_t *req)
     strcmp((char*)ws_pkt.payload,"Trigger async") == 0) {
     free(buf);
     return trigger_async_send(req->handle, req);
+  }
+
+  // Process packet
+  cJSON* root = cJSON_Parse((char*)ws_pkt.payload);
+  cJSON* x_val = cJSON_GetObjectItem(root, "x");
+  cJSON* y_val = cJSON_GetObjectItem(root, "y");
+
+  if (x_val && y_val && x_val->type == cJSON_Number && y_val->type == cJSON_Number)
+  {
+    // Print the decoded joystick position
+    ESP_LOGI(TAG, "X: %d Y: %d", x_val->valueint, y_val->valueint);
+
+    // Turn on the LED to indicate that a message was received
+    led_set(1);
+
+    // Set motor speeds
+    motor_set_all(y_val->valueint + x_val->valueint, y_val->valueint - x_val->valueint);
+    ESP_LOGI(TAG, "A: %d B: %d", y_val->valueint + x_val->valueint, y_val->valueint - x_val->valueint);
+
+    // Reset failsafe timer
+    if (xTimerStart(xFailsafeTimer, 0) != pdPASS)
+    {
+      ESP_LOGW(TAG, "Failed to reset failsafe timer!");
+    }
   }
 
   ret = httpd_ws_send_frame(req, &ws_pkt);
@@ -201,6 +232,21 @@ static void connect_handler(void* arg, esp_event_base_t event_base,
   }
 }
 
+// Failsafe has elapsed - stop motors and turn off the LED
+void failsafe_elapsed(TimerHandle_t xTimer)
+{
+  led_set(0);
+}
+
+// Create the failsafe timer
+void failsafe_init(void)
+{
+  xFailsafeTimer = xTimerCreate("Failsafe", pdMS_TO_TICKS(1000), pdTRUE, NULL, failsafe_elapsed);
+  if (xTimerStart(xFailsafeTimer, 0) != pdPASS)
+  {
+    ESP_LOGE(TAG, "Failed to start failsafe timer!");
+  }
+}
 
 void app_main(void)
 {
@@ -218,11 +264,9 @@ void app_main(void)
 
   wifi_init();
 
-  /* This helper function configures Wi-Fi or Ethernet, as selected in menuconfig.
-   * Read "Establishing Wi-Fi or Ethernet Connection" section in
-   * examples/protocols/README.md for more information about this function.
-   */
-  //ESP_ERROR_CHECK(example_connect());
+  led_init();
+  motor_init();
+  failsafe_init();
 
   ESP_ERROR_CHECK(esp_event_handler_register(IP_EVENT, IP_EVENT_STA_GOT_IP, &connect_handler, &server));
   ESP_ERROR_CHECK(esp_event_handler_register(WIFI_EVENT, WIFI_EVENT_STA_DISCONNECTED, &disconnect_handler, &server));

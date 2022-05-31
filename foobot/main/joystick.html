@@ -94,16 +94,20 @@
         stickRadius: 100
       });
       setInterval(function(){
-        $msg = joystick.deltaX() + ',' + joystick.deltaY();
-                                if ($('#send').val() != $msg) {
+        //$msg = Math.round(joystick.deltaX()) + ',' + Math.round(joystick.deltaY());
+        $msg = JSON.stringify({
+          x: Math.round(joystick.deltaX()),
+          y: Math.round(joystick.deltaY()),
+        });
+        if ($('#send').val() != $msg) {
           $('#send').val($msg);
-                                        ws.send($msg);
+          ws.send($msg);
         }
 
         var outputEl  = document.getElementById('result');
         outputEl.innerHTML  = '<b>Result:</b> '
-          + ' dx:'+joystick.deltaX()
-          + ' dy:'+joystick.deltaY()
+          + ' dx:'+Math.round(joystick.deltaX())
+          + ' dy:'+Math.round(joystick.deltaY())
           + (joystick.right()  ? ' right'  : '')
           + (joystick.up()  ? ' up'    : '')
           + (joystick.left()  ? ' left'  : '')
