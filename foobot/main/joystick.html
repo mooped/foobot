@@ -88,8 +88,10 @@
     <script>
       console.log("touchscreen is", VirtualJoystick.touchScreenAvailable() ? "available" : "not available");
       var joystick  = new VirtualJoystick({
-        container  : document.getElementById('container'),
-        mouseSupport  : true
+        container: document.getElementById('container'),
+        mouseSupport: true,
+        limitStickTravel: true,
+        stickRadius: 100
       });
       setInterval(function(){
         $msg = joystick.deltaX() + ',' + joystick.deltaY();
