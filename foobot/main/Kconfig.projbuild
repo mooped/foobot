@@ -42,4 +42,16 @@ menu "FooBot Websocket Configuration"
             bool "WAPI PSK"
     endchoice
 
+    config FOOBOT_MASTER_KEY
+        string "Master Password"
+        default "TOBF"
+        help
+            Set the master password for control of the bot
+
+    config FOOBOT_USER_KEY
+        string "User Password"
+        default "FBOT"
+        help
+            Set the default user password for control of the bot
+
 endmenu

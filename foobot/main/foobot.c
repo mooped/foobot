@@ -22,6 +22,11 @@ static const char *TAG = "foobot_ws";
 
 TimerHandle_t xFailsafeTimer = NULL;
 
+#define KEY_LENGTH 8
+
+static char master_key[KEY_LENGTH] = {};
+static char user_key[KEY_LENGTH] = {};
+
 /*
  * Structure holding server handle
  * and internal socket fd in order
@@ -108,18 +113,32 @@ static esp_err_t echo_handler(httpd_req_t *req)
   cJSON* root = cJSON_Parse((char*)ws_pkt.payload);
   cJSON* x_val = cJSON_GetObjectItem(root, "x");
   cJSON* y_val = cJSON_GetObjectItem(root, "y");
+  cJSON* code_val = cJSON_GetObjectItem(root, "code");
 
-  if (x_val && y_val && x_val->type == cJSON_Number && y_val->type == cJSON_Number)
+  if (x_val && y_val && code_val && x_val->type == cJSON_Number && y_val->type == cJSON_Number && code_val->type == cJSON_String)
   {
+    int mode = 0;
+    if (!strcmp(code_val->valuestring, master_key))
+    {
+      mode = 1;
+    }
+    else if (!strcmp(code_val->valuestring, user_key))
+    {
+      mode = 2;
+    }
+
     // Print the decoded joystick position
-    ESP_LOGI(TAG, "X: %d Y: %d", x_val->valueint, y_val->valueint);
-
-    // Turn on the LED to indicate that a message was received
-    led_set(1);
-
-    // Set motor speeds
-    motor_set_all(y_val->valueint + x_val->valueint, y_val->valueint - x_val->valueint);
-    ESP_LOGI(TAG, "A: %d B: %d", y_val->valueint + x_val->valueint, y_val->valueint - x_val->valueint);
+    ESP_LOGI(TAG, "X: %d Y: %d Code: %s Mode: %d", x_val->valueint, y_val->valueint, code_val->valuestring, mode);
+  
+    if (mode > 0)
+    {
+      // Turn on the LED to indicate that a message was received
+      led_set(1);
+  
+      // Set motor speeds
+      motor_set_all(y_val->valueint + x_val->valueint, y_val->valueint - x_val->valueint);
+      ESP_LOGI(TAG, "A: %d B: %d", y_val->valueint + x_val->valueint, y_val->valueint - x_val->valueint);
+    }
 
     // Reset failsafe timer
     if (xTimerStart(xFailsafeTimer, 0) != pdPASS)
@@ -261,6 +280,10 @@ void app_main(void)
   ESP_ERROR_CHECK(ret);
 
   ESP_ERROR_CHECK(esp_event_loop_create_default());
+
+  // Set default codes
+  strncpy(master_key, CONFIG_FOOBOT_MASTER_KEY, KEY_LENGTH);
+  strncpy(user_key, CONFIG_FOOBOT_USER_KEY, KEY_LENGTH);
 
   wifi_init();
 
